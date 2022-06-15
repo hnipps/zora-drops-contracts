@@ -7,7 +7,6 @@ import {IERC721AUpgradeable} from "erc721a-upgradeable/IERC721AUpgradeable.sol";
 
 import {IERC721Drop} from "../src/interfaces/IERC721Drop.sol";
 import {ERC721Drop} from "../src/ERC721Drop.sol";
-import {ZoraFeeManager} from "../src/ZoraFeeManager.sol";
 import {DummyMetadataRenderer} from "./utils/DummyMetadataRenderer.sol";
 import {MockUser} from "./utils/MockUser.sol";
 import {IMetadataRenderer} from "../src/interfaces/IMetadataRenderer.sol";
@@ -19,7 +18,6 @@ contract ERC721DropTest is DSTest {
     MockUser mockUser;
     Vm public constant vm = Vm(HEVM_ADDRESS);
     DummyMetadataRenderer public dummyRenderer = new DummyMetadataRenderer();
-    ZoraFeeManager public feeManager;
     FactoryUpgradeGate public factoryUpgradeGate;
     address public constant DEFAULT_OWNER_ADDRESS = address(0x23499);
     address payable public constant DEFAULT_FUNDS_RECIPIENT_ADDRESS =
@@ -63,12 +61,9 @@ contract ERC721DropTest is DSTest {
 
     function setUp() public {
         vm.prank(DEFAULT_ZORA_DAO_ADDRESS);
-        feeManager = new ZoraFeeManager(500, DEFAULT_ZORA_DAO_ADDRESS);
         factoryUpgradeGate = new FactoryUpgradeGate(UPGRADE_GATE_ADMIN_ADDRESS);
         vm.prank(DEFAULT_ZORA_DAO_ADDRESS);
-        impl = address(
-            new ERC721Drop(feeManager, address(0x1234), factoryUpgradeGate)
-        );
+        impl = address(new ERC721Drop(address(0x1234), factoryUpgradeGate));
         address payable newDrop = payable(
             address(new ERC721DropProxy(impl, ""))
         );
@@ -150,11 +145,7 @@ contract ERC721DropTest is DSTest {
 
     function test_UpgradeApproved() public setupZoraNFTBase(10) {
         address newImpl = address(
-            new ERC721Drop(
-                ZoraFeeManager(address(0xadadad)),
-                address(0x3333),
-                factoryUpgradeGate
-            )
+            new ERC721Drop(address(0x3333), factoryUpgradeGate)
         );
 
         address[] memory lastImpls = new address[](1);
@@ -166,7 +157,7 @@ contract ERC721DropTest is DSTest {
         });
         vm.prank(DEFAULT_OWNER_ADDRESS);
         zoraNFTBase.upgradeTo(newImpl);
-        assertEq(address(zoraNFTBase.zoraFeeManager()), address(0xadadad));
+        assertEq(zoraNFTBase.owner(), DEFAULT_OWNER_ADDRESS);
     }
 
     function test_PurchaseTime() public setupZoraNFTBase(10) {
@@ -256,23 +247,8 @@ contract ERC721DropTest is DSTest {
         vm.deal(address(zoraNFTBase), amount);
         vm.prank(DEFAULT_OWNER_ADDRESS);
         zoraNFTBase.withdraw();
-        (, uint256 feeBps) = feeManager.getZORAWithdrawFeesBPS(
-            address(zoraNFTBase)
-        );
-        assertEq(feeBps, 500);
 
-        assertTrue(
-            DEFAULT_ZORA_DAO_ADDRESS.balance <
-                ((uint256(amount) * 1_000 * 5) / 100000) + 2 ||
-                DEFAULT_ZORA_DAO_ADDRESS.balance >
-                ((uint256(amount) * 1_000 * 5) / 100000) + 2
-        );
-        assertTrue(
-            DEFAULT_FUNDS_RECIPIENT_ADDRESS.balance >
-                ((uint256(amount) * 1_000 * 95) / 100000) - 2 ||
-                DEFAULT_FUNDS_RECIPIENT_ADDRESS.balance <
-                ((uint256(amount) * 1_000 * 95) / 100000) + 2
-        );
+        assertTrue(DEFAULT_FUNDS_RECIPIENT_ADDRESS.balance == uint256(amount));
     }
 
     function test_MintLimit(uint8 limit) public setupZoraNFTBase(5000) {

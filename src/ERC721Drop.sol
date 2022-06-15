@@ -23,7 +23,6 @@ import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/se
 import {MerkleProofUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/cryptography/MerkleProofUpgradeable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
-import {IZoraFeeManager} from "./interfaces/IZoraFeeManager.sol";
 import {IMetadataRenderer} from "./interfaces/IMetadataRenderer.sol";
 import {IERC721Drop} from "./interfaces/IERC721Drop.sol";
 import {IOwnable} from "./interfaces/IOwnable.sol";
@@ -70,12 +69,8 @@ contract ERC721Drop is
     /// @dev Factory upgrade gate
     FactoryUpgradeGate internal immutable factoryUpgradeGate;
 
-    /// @dev Zora Fee Manager address
-    IZoraFeeManager public immutable zoraFeeManager;
-
     /// @notice Max royalty BPS
     uint16 constant MAX_ROYALTY_BPS = 50_00;
-
 
     /// @notice Only allow for users with admin access
     modifier onlyAdmin() {
@@ -150,14 +145,11 @@ contract ERC721Drop is
 
     /// @notice Global constructor – these variables will not change with further proxy deploys
     /// @dev Marked as an initializer to prevent storage being used of base implementation. Can only be init'd by a proxy.
-    /// @param _zoraFeeManager Zora Fee Manager
     /// @param _zoraERC721TransferHelper Transfer helper
     constructor(
-        IZoraFeeManager _zoraFeeManager,
         address _zoraERC721TransferHelper,
         FactoryUpgradeGate _factoryUpgradeGate
     ) initializer {
-        zoraFeeManager = _zoraFeeManager;
         zoraERC721TransferHelper = _zoraERC721TransferHelper;
         factoryUpgradeGate = _factoryUpgradeGate;
     }
@@ -220,8 +212,8 @@ contract ERC721Drop is
     /// @dev Only can be called by admin
     function _authorizeUpgrade(address newImplementation)
         internal
-        override
         view
+        override
         onlyAdmin
     {
         if (
@@ -329,17 +321,6 @@ contract ERC721Drop is
             return true;
         }
         return super.isApprovedForAll(nftOwner, operator);
-    }
-
-    /// @dev Gets the zora fee for amount of withdraw
-    /// @param amount amount of funds to get fee for
-    function zoraFeeForAmount(uint256 amount)
-        public
-        returns (address payable, uint256)
-    {
-        (address payable recipient, uint256 bps) = zoraFeeManager
-            .getZORAWithdrawFeesBPS(address(this));
-        return (recipient, (amount * bps) / 10_000);
     }
 
     /**
@@ -884,8 +865,6 @@ contract ERC721Drop is
     //          !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~!
     //          !~[noop]~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~!
     //                       |                    |                        |                            |
-    //                       |                    |                   send fee amount                   |
-    //                       |                    | <----------------------------------------------------
     //                       |                    |                        |                            |
     //                       |                    |                        |                            |
     //                       |                    |                        |             ____________________________________________________________
@@ -921,29 +900,13 @@ contract ERC721Drop is
 
         // Get fee amount
         uint256 funds = address(this).balance;
-        (address payable feeRecipient, uint256 zoraFee) = zoraFeeForAmount(
-            funds
-        );
 
         if (
             !hasRole(DEFAULT_ADMIN_ROLE, sender) &&
             !hasRole(SALES_MANAGER_ROLE, sender) &&
-            sender != feeRecipient &&
             sender != config.fundsRecipient
         ) {
             revert Access_WithdrawNotAllowed();
-        }
-
-        // Payout ZORA fee
-        if (zoraFee > 0) {
-            (bool successFee, ) = feeRecipient.call{
-                value: zoraFee,
-                gas: FUNDS_SEND_GAS_LIMIT
-            }("");
-            if (!successFee) {
-                revert Withdraw_FundsSendFailure();
-            }
-            funds -= zoraFee;
         }
 
         // Payout recipient

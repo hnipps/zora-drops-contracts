@@ -34,7 +34,6 @@ contract ZoraFeeManagerTest is DSTest {
         vm.prank(DEFAULT_ZORA_DAO_ADDRESS);
         SharedNFTLogic sharedLogic = new SharedNFTLogic();
         dropImpl = new ERC721Drop(
-            feeManager,
             address(1234),
             FactoryUpgradeGate(address(0))
         );
