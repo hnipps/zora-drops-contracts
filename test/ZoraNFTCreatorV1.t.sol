@@ -6,7 +6,6 @@ import {Vm} from "forge-std/Vm.sol";
 
 import {IMetadataRenderer} from "../src/interfaces/IMetadataRenderer.sol";
 import "../src/ZoraNFTCreatorV1.sol";
-import "../src/ZoraFeeManager.sol";
 import "../src/ZoraNFTCreatorProxy.sol";
 import {MockMetadataRenderer} from "./metadata/MockMetadataRenderer.sol";
 import {FactoryUpgradeGate} from "../src/FactoryUpgradeGate.sol";
@@ -27,10 +26,6 @@ contract ZoraFeeManagerTest is DSTest {
 
     function setUp() public {
         vm.prank(DEFAULT_ZORA_DAO_ADDRESS);
-        ZoraFeeManager feeManager = new ZoraFeeManager(
-            500,
-            DEFAULT_ZORA_DAO_ADDRESS
-        );
         vm.prank(DEFAULT_ZORA_DAO_ADDRESS);
         SharedNFTLogic sharedLogic = new SharedNFTLogic();
         dropImpl = new ERC721Drop(
